@@ -1,6 +1,6 @@
-import { catchAsync } from "../middleware/catchAsyn";
-import User from "../models/user.model";
-import { sentToken } from "../utils/jwt";
+import { catchAsync } from "../middleware/catchAsyn.js";
+import User from "../models/user.model.js";
+import { sentToken } from "../utils/jwt.js";
 
 
 export const RegisterController=catchAsync(async(req,res,next)=>{

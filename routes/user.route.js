@@ -1,9 +1,9 @@
 import express from "express"
-import { AllUserController, ChangeUserRoleController, LoginController, LogoutController, RegisterController, SingleUserController } from "../controllers/user.controller";
+import { AllUserController, ChangeUserRoleController, LoginController, LogoutController, RegisterController, SingleUserController } from "../controllers/user.controller.js";
 
 
 
-const userRouter=express.Router();
+export const userRouter=express.Router();
 
 
 
