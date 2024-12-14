@@ -1,51 +1,45 @@
 import { catchAsync } from "../middleware/catchAsyn.js";
 import Profile from "../models/Profile.model.js";
 import User from "../models/user.model.js";
+import ErrorHandler from "../utils/ErrorHandler.js";
 
-export const createProfile = catchAsync(async (req, res, next) => {
-  try {
-    const { userId, skills, interests, bio } = req.body;
+export const createOrUpdateProfile = catchAsync(async (req, res, next) => {
+    const { role, skills, interests, bio ,user} = req.body;
 
-    if (!userId || !skills || !interests || !bio) {
-      return res.status(400).json({
-        success: false,
-        message: "Please fill all the fields",
+    try {
+      let profile = await Profile.findOne({ user });
+      const existingUser = await User.findById(user);
+      console.log("karan",existingUser)
+
+
+      if (!existingUser) {
+        return res.status(400).json({ message: 'User not found' });
+      }
+      if (profile) {
+        // If the profile exists, update it
+        profile.skills = skills;
+        profile.interests = interests;
+        profile.bio = bio;
+  
+        await profile.save();
+        return res.status(200).json({ message: 'Profile updated successfully', profile });
+      }
+  
+      // If no profile exists, create a new one
+      profile = new Profile({
+        user: user,
+        role,
+        skills,
+        interests,
+        bio,
       });
+  
+      await profile.save();
+      return res.status(201).json({ message: 'Profile created successfully', profile });
+    } catch (error) {
+      console.error(error);
+      return res.status(500).json({ message: 'Server error', error: error.message });
     }
-
-    const user = await User.findById(userId);
-    if (!user) {
-      return res.status(400).json({
-        success: false,
-        message: "User not found",
-      });
-    }
-    const profile = await Profile.findOne({ userId });
-    if (profile) {
-      return res.status(400).json({
-        success: false,
-        message: "Profile already exists",
-      });
-    }
-    const newProfile = new Profile({
-      userId,
-      skills,
-      interests,
-      bio,
-    });
-    await newProfile.save();
-    res.status(200).json({
-      success: true,
-      profile: newProfile,
-
-      message: "Profile created successfully",
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message,
-    });
-  }
 });
 
 
@@ -54,7 +48,7 @@ export const createProfile = catchAsync(async (req, res, next) => {
 
 export const GetAllProfile=catchAsync(async(req,res,next)=>{
     try {
-        const Profiles=await Profile.find();
+        const Profiles=await Profile.find().populate("user","name email");
         res.status(200).json({
             success:true,
             Profiles,
@@ -71,43 +65,38 @@ export const GetAllProfile=catchAsync(async(req,res,next)=>{
 })
 
 //update Profile
-export const UpdateProfile=catchAsync(async(req,res,next)=>{
+
+//getprofilebyuser
+export const getProfileByUser = catchAsync(async (req, res, next) => {
     try {
-        const profile=await Profile.findById(req.params.id);
-        if(!profile){
-            return res.status(400).json({
-                success:false,
-                message:"Profile not found"
-            })
-        }
-        const {skills, interests, bio}=req.body;
-        if(skills){
-            profile.skills=skills;
-        }
-        if(interests){
-            profile.interests=interests;
-        }
-        if(bio){
-            profile.bio=bio;
-        }
-        await profile.save();
-        res.status(200).json({
-            success:true,
-            profile,
-            message:"Profile updated successfully"
-        })
+      const id = req.params.id; // Accessing the id from route params
+      const profile = await Profile.findOne({ user: id });
+  
+      if (!profile) {
+        return res.status(400).json({
+          success: false,
+          message: "Profile not found",
+        });
+      }
+  
+      res.status(200).json({
+        success: true,
+        profile,
+        message: "Profile fetched successfully",
+      });
     } catch (error) {
-        res.status(500).json({
-            success:false,
-            message:error.message
-        })
+      res.status(500).json({
+        success: false,
+        message: error.message,
+      });
     }
-})
+  });
+
 
 //get single Profile
 export const GetSingleProfile=catchAsync(async(req, res, next)=>{
     try {
-        const profile=await Profile.findById(req.params.id);
+        const profile=await Profile.findById(req.params.id).populate("sender", "name email");
         if(!profile){
             return res.status(400).json({
                 success:false,
@@ -127,17 +116,71 @@ export const GetSingleProfile=catchAsync(async(req, res, next)=>{
     }
 })
 
+//get all profile
+
+export const getAllProfiles = async (req, res) => {
+    try {
+      // Fetch all profiles from the database
+      const profiles = await Profile.find().populate('user', "name email")  ;
+  
+      // Return the profiles data
+      res.status(200).json({
+        success: true,
+        profiles,
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: 'Error fetching profiles',
+        error: error.message, // Send the error message for easier debugging
+      });
+    }
+  };
+
+
+export const getProfile = async (req, res) => {
+    try {
+      const { userId } = req.params;
+      
+  console.log(userId)
+      // Fetch the profile for the given user ID
+      const profile = await Profile.findOne({user: userId }).populate('user',"name email")  ;
+  
+
+      if (!profile) {
+        return res.status(404).json({
+          success: false,
+          message: 'Profile not found',
+        });
+      }
+  
+      // Return the profile data
+      res.status(200).json({
+        success: true,
+        profile,
+        
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: 'Error fetching profile',
+        error: error.message, // Send the error message for easier debugging
+      });
+    }
+  };
+  
 //delete Profile
 export const DeleteProfile=catchAsync(async(req, res, next)=>{
     try {
-        const profile=await Profile.findById(req.params.id);
+        const id=req.params.id;
+        const profile=await Profile.findOne({user:id});
         if(!profile){
             return res.status(400).json({
                 success:false,
                 message:"Profile not found"
             })
         }
-        await profile.remove();
+        await profile.deleteOne();
         res.status(200).json({
             success:true,
             message:"Profile deleted successfully"

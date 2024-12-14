@@ -1,5 +1,6 @@
 import express from "express"
-import { AllUserController, ChangeUserRoleController, LoginController, LogoutController, RegisterController, SingleUserController } from "../controllers/user.controller.js";
+import { AllUserController, getUserInfo, LoginController, LogoutController, RegisterController, SingleUserController, updateAccessToken } from "../controllers/user.controller.js";
+import { isAuthenticated } from "../middleware/auth.js";
 
 
 
@@ -9,7 +10,11 @@ export const userRouter=express.Router();
 
 userRouter.post("/register",RegisterController);
 userRouter.post("/login", LoginController);
-userRouter.get("/logout", LogoutController);
+userRouter.post("/logout", LogoutController);
 userRouter.get("/all", AllUserController)
 userRouter.get("/user/:id", SingleUserController);
-userRouter.put("/changeUserRole/:id", ChangeUserRoleController);
+userRouter.get("/me",isAuthenticated,getUserInfo)
+
+
+
+userRouter.get("/refreshToken",updateAccessToken)

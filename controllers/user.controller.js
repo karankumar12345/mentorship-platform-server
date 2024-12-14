@@ -1,11 +1,12 @@
 import { catchAsync } from "../middleware/catchAsyn.js";
 import User from "../models/user.model.js";
+import ErrorHandler from "../utils/ErrorHandler.js";
 import { sentToken } from "../utils/jwt.js";
-
+import jwt from "jsonwebtoken"
 
 export const RegisterController=catchAsync(async(req,res,next)=>{
    try {
-     const {name,email,password,role}=req.body;
+     const {name,email,password}=req.body;
  
      const existUser=await User.findOne({email});
      if(existUser){
@@ -18,7 +19,7 @@ export const RegisterController=catchAsync(async(req,res,next)=>{
          name,
          email,
          password,
-         role
+         
      })
      await sentToken(user,200,res)
      res.status(200).json({
@@ -49,7 +50,11 @@ export const LoginController=catchAsync(async(req, res, next)=>{
                 message:"Please enter email and password"
             })
         }
+
+
         const user=await User.findOne({email}).select("+password");
+        console.log(user)
+
         if(!user){
             return res.status(400).json({
                 success:false,
@@ -63,6 +68,7 @@ export const LoginController=catchAsync(async(req, res, next)=>{
                 message:"Invalid email or password"
             })
         }
+
         await sentToken(user, 200, res)
         res.status(200).json({
             success:true,
@@ -110,10 +116,33 @@ export const AllUserController=catchAsync(async(req, res, next)=>{
         })
     }
 })
+
+//single user info
+export const getUserInfo = catchAsync(async (req, res, next) => {
+    try {
+  
+   
+  
+      const user=await User.findOne(req.user._id)
+  
+  
+  
+      res.status(200).json({
+        success: true,
+        user
+      });
+    } catch (error) {
+        return next(new ErrorHandler(error.message, 500));
+    }
+  });
+  
 //single user controller
 export const SingleUserController=catchAsync(async(req, res, next)=>{
     try {
-        const user=await User.findById(req.params.id);
+        const userId = req.params.id; // Accessing the id from route params
+        const user = await User.findById(userId);
+        console.log(userId)
+console.log(user)    
         if(!user){
             return res.status(400).json({
                 success:false,
@@ -133,31 +162,89 @@ export const SingleUserController=catchAsync(async(req, res, next)=>{
     }
 })
 
-//change user role
-export const ChangeUserRoleController=catchAsync(async(req, res, next)=>{
+
+
+
+
+
+export const updateAccessToken = catchAsync(async (req, res, next) => {
     try {
-        const user=await User.findById(req.params.id);
-        if(!user){
-            return res.status(400).json({
-                success:false,
-                message:"User not found"
-            })
+      const refresh_token = req.cookies.refreshToken;
+      console.log("Refresh Token:", refresh_token);
+  
+      if (!refresh_token) {
+        return res.status(400).json({
+          success: false,
+          message: "Please login to access this resource.",
+        });
+      }
+  
+      // Decode and handle errors
+      let decoded;
+      try {
+        decoded = jwt.verify(refresh_token, "karankumar");
+        console.log(decoded)
+      } catch (err) {
+        if (err.name === "TokenExpiredError") {
+          console.error("JWT Token Expired:", err.message);
+          return res.status(401).json({
+            success: false,
+            message: "Refresh token expired. Please log in again.",
+          });
         }
-        if(user.role==="mentee"){
-            user.role="mentor"
-        }else{
-            user.role="mentee"
-        }
-        await user.save();
-        res.status(200).json({
-            success:true,
-            user,
-            message:"User role changed successfully"
-        })
+
+        console.error("JWT Verification Error:", err.message);
+        return res.status(400).json({
+          success: false,
+          message: "Invalid refresh token.",
+        });
+      }
+  
+      if (!decoded || !decoded.id) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid or expired refresh token. Please log in again.",
+        });
+      }
+  
+      const user = await User.findById(decoded.id);
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: "User not found.",
+        });
+      }
+  
+      // Generate new tokens
+      const accessToken = jwt.sign({ id: user._id }, "karankumar", { expiresIn: "5m" });
+      const newRefreshToken = jwt.sign({ id: user._id }, "karankumar", { expiresIn: "3d" });
+  
+      // Set cookies for the new tokens
+      res.cookie("accessToken", accessToken, {
+        maxAge: 5 * 60 * 1000,
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "strict",
+      });
+  
+      res.cookie("refreshToken", newRefreshToken, {
+        maxAge: 3 * 24 * 60 * 60 * 1000,
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "strict",
+      });
+  
+      console.log("Access Token refreshed:", accessToken);
+      res.status(200).json({
+        success: true,
+        accessToken,
+      });
     } catch (error) {
-        res.status(500).json({
-            success:false,
-            message:error.message
-        })
+      console.error("Error in updateAccessToken:", error.message);
+      res.status(500).json({
+        success: false,
+        message: error.message,
+      });
     }
-})
+  });
+  

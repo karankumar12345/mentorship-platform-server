@@ -3,55 +3,44 @@ import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
 import dotenv from "dotenv";
 
-
 dotenv.config();
 
-const userSchema=new mongoose.Schema({
-    name:{
-        type:String,
-        required:true,
+const userSchema = new mongoose.Schema(
+  {
+    name: { type: String, required: true },
+    email: { type: String, required: true, unique: true },
+    password: { type: String, required: true },
 
-    },
-    email:{
-        type:String,
-        required:true,
-        unique:true,
+  },
+  { timestamps: true }
+);
 
-    },
-    password:{
-        type:String,
-        required:true,
-    },
-    role:{
-        type:String,
-        enum:["mentor","mentee"],
-        required:true,
+userSchema.pre("save", async function (next) {
+  if (!this.isModified("password")) {
+    next();
+  }
+  this.password = await bcrypt.hash(this.password, 10);
+  next();
+});
+userSchema.methods.comparePassword = async function (enterPassword) {
+  return await bcrypt.compare(enterPassword, this.password);
+};
 
-    }
-},{timestamps:true})
+userSchema.methods.SignAccessToken = function () {
+  return jwt.sign(
+    { id: this._id },
+    process.env.REFRESH_TOKEN_SECRET ||"karankumar",
+    { expiresIn: "5m"}
+  );
+};
 
+userSchema.methods.SignRefreshToken = function () {
+  return jwt.sign(
+    { id: this._id },
+    process.env.REFRESH_TOKEN_SECRET ||"karankumar",
+    { expiresIn: "5m" }
+  );
+};
 
-userSchema.methods.comparePassword=async function (enterPassword){
-    return await bcrypt.compare(enterPassword,this.password)
-
-}
-userSchema.methods.SignAccessToken=function(){
-    const accessToken=jwt.sign(
-        {id:this._id},
-        process.env.REFRESH_TOKEN_SECRET,
-        {expiresIn:process.env.ACCESS_TOKEN_EXPIRY}
-    )
-    return accessToken;
-}
-userSchema.methods.SignRefreshToken=function(){
-    const refreshToken=jwt.sign(
-        {id:this._id},
-        process.env.REFRESH_TOKEN_SECRET,
-        {expiresIn:process.env.REFRESH_TOKEN_EXPIRY}
-    )
-    return refreshToken;
-}
-
-
-const User=mongoose.model("User",userSchema)
+const User = mongoose.model("User", userSchema);
 export default User;
